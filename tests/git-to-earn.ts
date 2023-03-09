@@ -24,51 +24,53 @@ describe("git-to-earn", () => {
       }
     ).rpc();
 
-    const user1Id = Buffer.from("GitHubUser1");
-    const [user1Proxy, _user1ProxyBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("proxy"), user1Id], program.programId);
-    const [user1Wallet, _user1WalletBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("wallet"), user1Id], program.programId);
+    const orgId = Buffer.from("org");
+    const [orgProxy, _orgProxyBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("proxy"), orgId], program.programId);
+    const [orgWallet, _orgWalletBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("wallet"), orgId], program.programId);
 
-    const user2Id = Buffer.from("GitHubUser2");
-    const [user2Proxy, _user2ProxyBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("proxy"), user2Id], program.programId);
-    const [user2Wallet, _user2WalletBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("wallet"), user2Id], program.programId);
+    const devId = Buffer.from("prodev");
+    const [devProxy, _devProxyBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("proxy"), devId], program.programId);
+    const [devWallet, _devWalletBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("wallet"), devId], program.programId);
 
-    await program.methods.initializeUserOwner(user1Id).accounts({
-      walletProxy: user1Proxy,
+    await program.methods.initializeUserOwner(orgId.toString(), true).accounts({
+      walletProxy: orgProxy,
       state,
       signingOracle: signingOracle.publicKey,
       signer: program.provider.publicKey,
       systemProgram: anchor.web3.SystemProgram.programId,
-    }).signers([signingOracle]).rpc(); // Here: provider wallet becomes virtual owner of user1Proxy/user1Wallet
+    }).signers([signingOracle]).rpc(); // Here: provider wallet becomes virtual owner of orgProxy/orgWallet 
 
-    await airdrop(user1Wallet);
+    await airdrop(orgWallet);
 
-    await program.methods.transfer(user1Id, user2Id, new anchor.BN(0.5 * anchor.web3.LAMPORTS_PER_SOL)).accounts(
+    await program.methods.transfer(orgId.toString(), devId.toString(), new anchor.BN(0.5 * anchor.web3.LAMPORTS_PER_SOL)).accounts(
       {
-        senderWallet: user1Wallet,
-        receiverWallet: user2Wallet,
+        senderWallet: orgWallet,
+        receiverWallet: devWallet,
         state,
         signingOracle: signingOracle.publicKey,
         signer: program.provider.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       }
-    ).signers([signingOracle]).rpc(); // transferring to user2 who hasn't initialised yet
+    ).signers([signingOracle]).rpc(); // transferring to dev who hasn't initialised yet
 
-    await program.methods.initializeUserOwner(user2Id).accounts({
-      walletProxy: user2Proxy,
+    await program.methods.initializeUserOwner(devId.toString(), false).accounts({
+      walletProxy: devProxy,
       state,
       signingOracle: signingOracle.publicKey,
       signer: program.provider.publicKey,
       systemProgram: anchor.web3.SystemProgram.programId,
-    }).signers([signingOracle]).rpc(); // Here: provider wallet becomes virtual owner of user2Proxy/user2Wallet
+    }).signers([signingOracle]).rpc(); // Here: provider wallet becomes virtual owner of devProxy/devWallet
 
-    await program.methods.withdraw(user2Id, new anchor.BN(0.1 * anchor.web3.LAMPORTS_PER_SOL)).accounts(
+    await program.methods.withdraw(devId.toString(), new anchor.BN(0.1 * anchor.web3.LAMPORTS_PER_SOL)).accounts(
       {
-        userProxy: user2Proxy,
-        userWallet: user2Wallet,
+        userProxy: devProxy,
+        userWallet: devWallet,
 
         authority: program.provider.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       }
     ).rpc();
+
+    console.log((await program.account.state.fetch(state)).orgList);
   });
 });

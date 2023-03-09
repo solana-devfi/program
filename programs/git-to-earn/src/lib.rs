@@ -14,21 +14,27 @@ pub mod git_to_earn {
 
     pub fn initialize_user_owner(
         ctx: Context<InitializeUserOwner>,
-        _user_id: Vec<u8>,
+        user_id: String,
+        is_org: bool,
     ) -> Result<()> {
         require_keys_eq!(ctx.accounts.wallet_proxy.authority, Pubkey::default());
         ctx.accounts.wallet_proxy.authority = ctx.accounts.signer.key();
+
+        if is_org {
+            ctx.accounts.state.org_list.push(user_id);
+        }
+
         Ok(())
     }
 
     pub fn transfer(
         ctx: Context<Transfer>,
-        sender_id: Vec<u8>,
-        _receiver_id: Vec<u8>,
+        sender_id: String,
+        _receiver_id: String,
         amount: u64,
     ) -> Result<()> {
         let bump = vec![*ctx.bumps.get("sender_wallet").unwrap()];
-        let seeds = &[b"wallet".as_ref(), sender_id.as_ref(), bump.as_slice()];
+        let seeds = &[b"wallet".as_ref(), sender_id.as_bytes(), bump.as_slice()];
         let seeds = &[&seeds[..]];
 
         let cpi_context = CpiContext::new_with_signer(
@@ -45,9 +51,9 @@ pub mod git_to_earn {
         Ok(())
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, user_id: Vec<u8>, amount: u64) -> Result<()> {
+    pub fn withdraw(ctx: Context<Withdraw>, user_id: String, amount: u64) -> Result<()> {
         let bump = vec![*ctx.bumps.get("user_wallet").unwrap()];
-        let seeds = &[b"wallet".as_ref(), user_id.as_ref(), bump.as_slice()];
+        let seeds = &[b"wallet".as_ref(), user_id.as_bytes(), bump.as_slice()];
         let seeds = &[&seeds[..]];
 
         let cpi_context = CpiContext::new_with_signer(
@@ -81,18 +87,18 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(_user_id: Vec<u8>)]
+#[instruction(user_id: String)]
 pub struct InitializeUserOwner<'info> {
     #[account(
         init_if_needed,
         payer = signer,
         space = 8 + WalletProxy::MAXIMUM_SIZE,
-        seeds = [b"proxy".as_ref(), _user_id.as_ref()],
+        seeds = [b"proxy".as_ref(), user_id.as_bytes()],
         bump
     )]
     pub wallet_proxy: Box<Account<'info, WalletProxy>>,
 
-    #[account(seeds = [b"state"], bump, has_one = signing_oracle)]
+    #[account(mut, seeds = [b"state"], bump, has_one = signing_oracle)]
     pub state: Box<Account<'info, State>>,
 
     #[account(mut)]
@@ -104,12 +110,12 @@ pub struct InitializeUserOwner<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(sender_id: Vec<u8>, _receiver_id: Vec<u8>)]
+#[instruction(sender_id: String, _receiver_id: String)]
 pub struct Transfer<'info> {
     /// CHECK:
     #[account(
         mut,
-        seeds = [b"wallet".as_ref(), sender_id.as_ref()],
+        seeds = [b"wallet".as_ref(), sender_id.as_bytes()],
         bump,
     )]
     pub sender_wallet: AccountInfo<'info>,
@@ -117,7 +123,7 @@ pub struct Transfer<'info> {
     /// CHECK:
     #[account(
         mut,
-        seeds = [b"wallet".as_ref(), _receiver_id.as_ref()],
+        seeds = [b"wallet".as_ref(), _receiver_id.as_bytes()],
         bump
     )]
     pub receiver_wallet: AccountInfo<'info>,
@@ -134,10 +140,10 @@ pub struct Transfer<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(user_id: Vec<u8>)]
+#[instruction(user_id: String)]
 pub struct Withdraw<'info> {
     #[account(
-        seeds = [b"proxy".as_ref(), user_id.as_ref()],
+        seeds = [b"proxy".as_ref(), user_id.as_bytes()],
         bump,
         has_one = authority,
     )]
@@ -146,7 +152,7 @@ pub struct Withdraw<'info> {
     /// CHECK:
     #[account(
         mut,
-        seeds = [b"wallet".as_ref(), user_id.as_ref()],
+        seeds = [b"wallet".as_ref(), user_id.as_bytes()],
         bump,
     )]
     pub user_wallet: AccountInfo<'info>,
@@ -159,10 +165,13 @@ pub struct Withdraw<'info> {
 #[account]
 pub struct State {
     pub signing_oracle: Pubkey,
+    pub org_list: Vec<String>,
 }
 
 impl State {
-    pub const MAXIMUM_SIZE: usize = 32;
+    pub const MAXIMUM_SIZE: usize = 32 + // signing_oracle Pubkey 
+        4 + // size of org_list vector 
+        (4 + 24) * 150; // support a maximum of 150 org strings of length 24
 }
 
 #[account]
