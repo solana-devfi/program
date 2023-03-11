@@ -5,6 +5,9 @@ skip-lint = false
 [programs.localnet]
 git_to_earn = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
+[programs.devnet]
+git_to_earn = "8KFc1kae5g8LqAwmZHskgaSYjaHXpt9PCRwKNtuajgAa"
+
 [registry]
 url = "https://api.apr.dev"
 
